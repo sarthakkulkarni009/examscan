@@ -1,6 +1,7 @@
 import io
 import os
 from django.conf import settings
+from django.db import IntegrityError
 from django.http import FileResponse, Http404
 from django.utils import timezone
 from rest_framework import status, generics
@@ -608,14 +609,32 @@ class GenerateStudentTokensView(APIView):
             roll = roll.strip()
             if not roll:
                 continue
-            obj, created = StudentToken.objects.get_or_create(
-                roll_number=roll,
-                subject=subject,
-                defaults={
-                    'token': generate_token(roll),
-                    'created_by': request.user,
-                }
-            )
+            # Retry loop guards against the rare race where two concurrent
+            # requests try to insert the same (roll_number, subject) pair,
+            # or the even rarer case of a random token collision.
+            for attempt in range(5):
+                try:
+                    obj, created = StudentToken.objects.get_or_create(
+                        roll_number=roll,
+                        subject=subject,
+                        defaults={
+                            'token': generate_token(roll),
+                            'created_by': request.user,
+                        }
+                    )
+                    break
+                except IntegrityError:
+                    # Token collision or concurrent insert — fetch the winner
+                    try:
+                        obj = StudentToken.objects.get(roll_number=roll, subject=subject)
+                        break
+                    except StudentToken.DoesNotExist:
+                        continue  # genuine token collision; retry with new nonce
+            else:
+                return Response(
+                    {'error': f'Could not generate a unique token for roll {roll}. Please retry.'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
             result.append({'token': obj.token, 'roll_number': roll})
 
         log_action(request, 'SCAN', 'StudentToken', subject_id,
@@ -743,14 +762,28 @@ class TokenFileUploadView(APIView):
         # Generate tokens
         result = []
         for roll in roll_numbers:
-            obj, created = StudentToken.objects.get_or_create(
-                roll_number=roll,
-                subject=subject,
-                defaults={
-                    'token': generate_token(roll),
-                    'created_by': request.user,
-                }
-            )
+            for attempt in range(5):
+                try:
+                    obj, created = StudentToken.objects.get_or_create(
+                        roll_number=roll,
+                        subject=subject,
+                        defaults={
+                            'token': generate_token(roll),
+                            'created_by': request.user,
+                        }
+                    )
+                    break
+                except IntegrityError:
+                    try:
+                        obj = StudentToken.objects.get(roll_number=roll, subject=subject)
+                        break
+                    except StudentToken.DoesNotExist:
+                        continue
+            else:
+                return Response(
+                    {'error': f'Could not generate a unique token for roll {roll}. Please retry.'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
             result.append({'token': obj.token, 'roll_number': roll})
 
         log_action(request, 'SCAN', 'StudentToken', subject.id,

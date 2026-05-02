@@ -40,7 +40,7 @@ function PDFViewer({
   markPositions = {}, onBadgePositionChange, onBadgeRemove,
 }) {
   const [numPages, setNumPages] = useState(null)
-  const [scale, setScale]       = useState(1.2)
+  const [scale, setScale]       = useState(1.0)
   const [error, setError]       = useState(null)
 
   // Memoize file object — prevents react-pdf from reloading the PDF whenever
