@@ -83,7 +83,11 @@ class BundleListView(generics.ListAPIView):
             elif user.role == 'exam_dept':
                 qs = qs.filter(status='submitted')
             elif user.role == 'teacher':
-                qs = qs.filter(answer_sheets__assigned_teacher=user).distinct()
+                from django.db.models import Q
+                qs = qs.filter(
+                    Q(answer_sheets__assigned_teacher=user) |
+                    Q(moderation_assignment__moderator=user)
+                ).distinct()
         return qs
 
 
@@ -430,7 +434,11 @@ class AnswerSheetListView(generics.ListAPIView):
         )
         user = self.request.user
         if user.role == 'teacher':
-            qs = qs.filter(assigned_teacher=self.request.user)
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(assigned_teacher=self.request.user) |
+                Q(moderation_samples__bundle_assignment__moderator=self.request.user)
+            ).distinct()
         elif user.role == 'scanning_staff':
             qs = qs.filter(bundle__created_by=user)
         elif user.role == 'exam_dept':
@@ -565,9 +573,14 @@ class AnswerSheetPDFView(APIView):
         except AnswerSheet.DoesNotExist:
             raise Http404
 
-        # Teachers can only view their own assigned sheets
-        if request.user.role == 'teacher' and sheet.assigned_teacher != request.user:
-            return Response({'error': 'Not authorized.'}, status=status.HTTP_403_FORBIDDEN)
+        # Teachers can only view their own assigned sheets or moderation samples
+        if request.user.role == 'teacher':
+            is_assigned = (sheet.assigned_teacher == request.user)
+            is_moderator = sheet.moderation_samples.filter(
+                bundle_assignment__moderator=request.user
+            ).exists()
+            if not is_assigned and not is_moderator:
+                return Response({'error': 'Not authorized.'}, status=status.HTTP_403_FORBIDDEN)
 
         file_path = sheet.pdf_file.path
         if not os.path.isfile(file_path):

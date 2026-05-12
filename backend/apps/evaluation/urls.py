@@ -6,6 +6,14 @@ from .views import (
     SaveEvaluationDraftView,
     MarkedPDFView,
     VerifyMarkedPDFView,
+    BundleAssignmentCreateView,
+    RequestComparisonView,
+    ModerationStatusView,
+    TeacherAssessmentBundlesView,
+    TeacherModerationBundlesView,
+    NotificationListView,
+    NotificationMarkReadView,
+    NotificationMarkAllReadView,
 )
 
 urlpatterns = [
@@ -26,4 +34,23 @@ urlpatterns = [
 
     # Tamper-detection: compare SHA-256 (exam dept only)
     path('<int:pk>/verify-pdf/', VerifyMarkedPDFView.as_view(), name='verify-pdf'),
+]
+
+# Moderation URLs
+moderation_urlpatterns = [
+    path('moderation/<int:bundle_id>/request-comparison/', RequestComparisonView.as_view(), name='moderation-compare'),
+    path('moderation/<int:bundle_id>/status/', ModerationStatusView.as_view(), name='moderation-status'),
+]
+
+# Teacher bundle URLs
+teacher_urlpatterns = [
+    path('teacher/bundles/assessment/', TeacherAssessmentBundlesView.as_view(), name='teacher-assessment-bundles'),
+    path('teacher/bundles/moderation/', TeacherModerationBundlesView.as_view(), name='teacher-moderation-bundles'),
+]
+
+# Notification URLs
+notification_urlpatterns = [
+    path('notifications/', NotificationListView.as_view(), name='notification-list'),
+    path('notifications/<int:pk>/read/', NotificationMarkReadView.as_view(), name='notification-read'),
+    path('notifications/read-all/', NotificationMarkAllReadView.as_view(), name='notification-read-all'),
 ]

@@ -10,30 +10,35 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.users.permissions import IsTeacher, IsExamDept
-from apps.scanning.models import MarkingScheme, AnswerSheet, Subject
+from apps.scanning.models import MarkingScheme, AnswerSheet, Subject, Bundle
 from apps.scanning.serializers import MarkingSchemeSerializer
 from apps.audit.models import AuditLog
 from utils.audit_helper import log_action
-from .models import EvaluationResult
-from .serializers import EvaluationResultSerializer
+from .models import (
+    EvaluationResult, BundleAssignment, ModerationSample,
+    ModerationPaperStatus, Notification,
+)
+from .serializers import (
+    EvaluationResultSerializer, BundleAssignmentSerializer,
+    ModerationPaperStatusSerializer, NotificationSerializer,
+    BundleAssignmentSummarySerializer,
+)
 from .pdf_annotator import annotate_pdf
+from . import services
 
 
 class IsTeacherOrExamDept(IsAuthenticated):
-    """Allow access to users with 'teacher' or 'exam_dept' role."""
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
             return False
         return request.user.role in ('teacher', 'exam_dept')
 
 
-
 # ─────────────────────────────────────────────────────────
-# Marking Scheme Views
+# Marking Scheme Views (unchanged)
 # ─────────────────────────────────────────────────────────
 
 class MarkingSchemeListCreateView(generics.ListCreateAPIView):
-    """GET / POST marking schemes."""
     queryset = MarkingScheme.objects.select_related('subject').all()
     serializer_class = MarkingSchemeSerializer
 
@@ -98,7 +103,6 @@ class MarkingSchemeListCreateView(generics.ListCreateAPIView):
 
 
 class MarkingSchemeDetailView(generics.RetrieveUpdateAPIView):
-    """GET / PUT marking scheme by ID."""
     queryset = MarkingScheme.objects.select_related('subject').all()
     serializer_class = MarkingSchemeSerializer
 
@@ -167,36 +171,71 @@ class MarkingSchemeDetailView(generics.RetrieveUpdateAPIView):
 
 
 # ─────────────────────────────────────────────────────────
-# Evaluation Views
+# Evaluation Views (updated for roles)
 # ─────────────────────────────────────────────────────────
 
 class EvaluationCreateView(APIView):
     """
     POST /api/evaluations/
-    Teacher submits grading for an answer sheet.
-
-    Accepts mark_positions list alongside section_results.
-    After saving marks, generates an annotated PDF (_v2_marked.pdf) with
-    red badges baked in using ReportLab + pypdf. PDF failure is non-fatal.
+    Teacher submits grading. Accepts role param for moderation workflow.
     """
     permission_classes = [IsTeacher]
 
     def post(self, request):
         answer_sheet_id = request.data.get('answer_sheet')
         mark_positions = request.data.get('mark_positions', [])
+        role = request.data.get('role', 'assessor')
 
         try:
-            sheet = AnswerSheet.objects.get(pk=answer_sheet_id, assigned_teacher=request.user)
+            sheet = AnswerSheet.objects.get(pk=answer_sheet_id)
         except AnswerSheet.DoesNotExist:
+            return Response({'error': 'Answer sheet not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Permission: teacher must be assigned (assessor) or moderator
+        assignment = getattr(sheet.bundle, 'moderation_assignment', None)
+        if assignment:
+            if role == 'moderator':
+                if request.user != assignment.moderator:
+                    return Response({'error': 'Not authorized as moderator.'}, status=403)
+                # Moderator can only evaluate moderation samples
+                if not sheet.moderation_samples.filter(bundle_assignment=assignment).exists():
+                    return Response({'error': 'This paper is not a moderation sample.'}, status=400)
+            else:
+                if request.user != assignment.assessor:
+                    return Response({'error': 'Not authorized as assessor.'}, status=403)
+        else:
+            # Legacy flow: teacher must be assigned
+            if sheet.assigned_teacher != request.user:
+                return Response({'error': 'Not assigned to you.'}, status=404)
+
+        # Check if moderator eval is locked
+        existing = EvaluationResult.objects.filter(
+            answer_sheet=sheet, role=role
+        ).first()
+
+        if existing and existing.comparison_locked:
             return Response(
-                {'error': 'Answer sheet not found or not assigned to you.'},
-                status=status.HTTP_404_NOT_FOUND
+                {'error': 'This evaluation is locked after comparison.'},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-        # ── Upsert evaluation ────────────────────────────────────────────────
-        # Pass the existing instance (if any) so DRF excludes it from the
-        # OneToOneField UniqueValidator and doesn't raise 400 on re-evaluation.
-        existing = getattr(sheet, 'evaluation', None)
+        # If assessor is correcting a failed moderation paper, create revision
+        if existing and role == 'assessor' and assignment:
+            sample = sheet.moderation_samples.filter(bundle_assignment=assignment).first()
+            if sample:
+                try:
+                    paper_status = sample.comparison_status
+                    if paper_status.status == 'FAILED':
+                        services.create_evaluation_revision(
+                            existing, request.user, reason='Moderation correction'
+                        )
+                        log_action(
+                            request, 'MOD_CORRECTION', 'EvaluationResult', existing.pk,
+                            old_value={'total_marks': existing.total_marks},
+                            notes=f'Assessor correcting marks after failed moderation.',
+                        )
+                except ModerationPaperStatus.DoesNotExist:
+                    pass
 
         serializer = EvaluationResultSerializer(
             instance=existing,
@@ -207,37 +246,32 @@ class EvaluationCreateView(APIView):
 
         if existing:
             old_data = EvaluationResultSerializer(existing).data
-
-            # Update existing record
             for field, value in serializer.validated_data.items():
                 setattr(existing, field, value)
             existing.mark_positions = mark_positions
             existing.total_marks = getattr(serializer, '_computed_total', existing.total_marks)
             existing.save()
             existing.refresh_from_db()
-
             instance = existing
             is_new = False
         else:
             instance = serializer.save(
                 teacher=request.user,
+                role=role,
                 pdf_version_at_grading=sheet.pdf_version,
                 mark_positions=mark_positions,
             )
             is_new = True
 
-        # ── Generate annotated PDF ───────────────────────────────────────────
+        # Generate annotated PDF only for assessor role
         pdf_hash = None
         marked_pdf_rel = None
-
-        if mark_positions:
+        if mark_positions and role == 'assessor':
             try:
                 original_pdf_path = sheet.pdf_file.path
                 output_pdf_path = os.path.join(
-                    settings.MEDIA_ROOT,
-                    'answer_sheets',
-                    str(sheet.bundle_id),
-                    f'{sheet.token}_v2_marked.pdf',
+                    settings.MEDIA_ROOT, 'answer_sheets',
+                    str(sheet.bundle_id), f'{sheet.token}_v2_marked.pdf',
                 )
                 pdf_hash = annotate_pdf(
                     original_pdf_path=original_pdf_path,
@@ -248,25 +282,25 @@ class EvaluationCreateView(APIView):
                 instance.marked_pdf_path = marked_pdf_rel
                 instance.save(update_fields=['marked_pdf_path'])
             except Exception as exc:
-                # Non-fatal — marks saved, PDF will be absent
                 print(f'[ExamFlow] PDF annotation failed for sheet {sheet.id}: {exc}')
 
-        # ── Update sheet status ──────────────────────────────────────────────
-        sheet.status = 'completed'
-        sheet.save(update_fields=['status'])
+        # Update sheet status — only assessor submissions mark the sheet
+        if role == 'assessor':
+            sheet.status = 'completed'
+            sheet.save(update_fields=['status'])
 
-        # ── AuditLog ─────────────────────────────────────────────────────────
         action_type = 'GRADE' if is_new else 'EDIT_MARKS'
         log_action(
             request, action_type, 'EvaluationResult', instance.pk,
             old_value=None if is_new else EvaluationResultSerializer(instance).data,
             new_value={
                 'total_marks': instance.total_marks,
+                'role': instance.role,
                 'marked_pdf_path': marked_pdf_rel,
                 'pdf_sha256': pdf_hash,
                 'badge_count': len(mark_positions),
             },
-            notes=f'Evaluated by {request.user.full_name}. Total: {instance.total_marks}.',
+            notes=f'Evaluated ({role}) by {request.user.full_name}. Total: {instance.total_marks}.',
         )
 
         return Response(
@@ -276,36 +310,28 @@ class EvaluationCreateView(APIView):
 
 
 class EvaluationDetailView(APIView):
-    """
-    GET /api/evaluations/{answer_sheet_id}/
-    Retrieve evaluation result for an answer sheet.
-    """
+    """GET /api/evaluations/{answer_sheet_id}/?role=assessor"""
 
     def get_permissions(self):
         return [IsTeacherOrExamDept()]
 
     def get(self, request, answer_sheet_id):
+        role = request.query_params.get('role', 'assessor')
         try:
             result = EvaluationResult.objects.select_related(
                 'teacher', 'answer_sheet'
-            ).get(answer_sheet_id=answer_sheet_id)
+            ).get(answer_sheet_id=answer_sheet_id, role=role)
         except EvaluationResult.DoesNotExist:
-            return Response(
-                {'error': 'Evaluation result not found.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({'error': 'Evaluation result not found.'}, status=404)
 
         if request.user.role == 'teacher' and result.teacher != request.user:
-            return Response({'error': 'Not authorized.'}, status=status.HTTP_403_FORBIDDEN)
+            return Response({'error': 'Not authorized.'}, status=403)
 
         return Response(EvaluationResultSerializer(result).data)
 
 
 class EvaluationAmendView(APIView):
-    """
-    PATCH /api/evaluations/{pk}/amend-marks/
-    Exam Dept corrects marks post-submission.
-    """
+    """PATCH /api/evaluations/{pk}/amend-marks/ — Exam Dept corrects marks."""
     permission_classes = [IsExamDept]
 
     def patch(self, request, pk):
@@ -314,17 +340,11 @@ class EvaluationAmendView(APIView):
                 'teacher', 'answer_sheet'
             ).get(pk=pk)
         except EvaluationResult.DoesNotExist:
-            return Response(
-                {'error': 'Evaluation result not found.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({'error': 'Evaluation result not found.'}, status=404)
 
         new_section_results = request.data.get('section_results')
         if not new_section_results:
-            return Response(
-                {'error': 'section_results is required.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': 'section_results is required.'}, status=400)
 
         serializer = EvaluationResultSerializer(
             result, data={'section_results': new_section_results,
@@ -352,39 +372,43 @@ class EvaluationAmendView(APIView):
             notes=f'Marks amended by Exam Dept. New total: {result.total_marks}.'
         )
 
-        return Response(EvaluationResultSerializer(result).data, status=status.HTTP_200_OK)
+        return Response(EvaluationResultSerializer(result).data)
 
 
 class SaveEvaluationDraftView(APIView):
-    """
-    PATCH /api/evaluations/draft/
-    Teacher only. Upserts marks + badge positions without generating the PDF
-    and without changing sheet status to 'completed'.
-    Called automatically every 30 s by EvaluationScreen.
-    """
+    """PATCH /api/evaluations/draft/ — Auto-save draft with role support."""
     permission_classes = [IsTeacher]
 
     def patch(self, request):
         answer_sheet_id = request.data.get('answer_sheet')
         section_results = request.data.get('section_results', [])
-        mark_positions  = request.data.get('mark_positions', [])
+        mark_positions = request.data.get('mark_positions', [])
+        role = request.data.get('role', 'assessor')
 
         try:
-            sheet = AnswerSheet.objects.get(
-                pk=answer_sheet_id,
-                assigned_teacher=request.user,
-            )
+            sheet = AnswerSheet.objects.get(pk=answer_sheet_id)
         except AnswerSheet.DoesNotExist:
             return Response({'error': 'Answer sheet not found.'}, status=404)
 
-        # Allow re-evaluation drafts on completed sheets (teacher re-grades).
-        # We will reset the status back to 'under_evaluation' so the final
-        # submit can mark it 'completed' again.
-        if sheet.status == 'completed':
-            sheet.status = 'under_evaluation'
-            sheet.save(update_fields=['status'])
+        # Verify authorization
+        assignment = getattr(sheet.bundle, 'moderation_assignment', None)
+        if assignment:
+            if role == 'moderator' and request.user != assignment.moderator:
+                return Response({'error': 'Not authorized.'}, status=403)
+            elif role == 'assessor' and request.user != assignment.assessor:
+                return Response({'error': 'Not authorized.'}, status=403)
+        elif sheet.assigned_teacher != request.user:
+            return Response({'error': 'Not authorized.'}, status=403)
 
-        # Compute total (best-effort, no validation errors raised)
+        # Check if locked
+        existing = EvaluationResult.objects.filter(
+            answer_sheet=sheet, role=role
+        ).first()
+        if existing and existing.comparison_locked:
+            return Response({'error': 'Evaluation locked.'}, status=400)
+
+        # Compute total
+        from math import ceil as _ceil
         total = 0
         for q in (section_results or []):
             for sq in q.get('sub_questions', []):
@@ -392,9 +416,11 @@ class SaveEvaluationDraftView(APIView):
                     v = p.get('marks_obtained')
                     if isinstance(v, (int, float)) and v >= 0:
                         total += v
+        total = _ceil(total)
 
         result, created = EvaluationResult.objects.update_or_create(
             answer_sheet=sheet,
+            role=role,
             defaults={
                 'teacher': request.user,
                 'section_results': section_results,
@@ -408,15 +434,11 @@ class SaveEvaluationDraftView(APIView):
             sheet.status = 'under_evaluation'
             sheet.save(update_fields=['status'])
 
-        return Response({'status': 'draft_saved', 'total_marks': total}, status=200)
+        return Response({'status': 'draft_saved', 'total_marks': total})
 
 
 class MarkedPDFView(APIView):
-    """
-    GET /api/evaluations/{pk}/marked-pdf/
-    Streams the annotated (v2) PDF.
-    Teachers can only access their own. Exam dept can access any.
-    """
+    """GET /api/evaluations/{pk}/marked-pdf/"""
     def get_permissions(self):
         return [IsTeacherOrExamDept()]
 
@@ -442,11 +464,7 @@ class MarkedPDFView(APIView):
 
 
 class VerifyMarkedPDFView(APIView):
-    """
-    GET /api/evaluations/{pk}/verify-pdf/
-    Exam dept only. Recomputes SHA-256 of the stored marked PDF and compares
-    it against the hash logged in AuditLog at submission time.
-    """
+    """GET /api/evaluations/{pk}/verify-pdf/"""
     permission_classes = [IsExamDept]
 
     def get(self, request, pk):
@@ -465,11 +483,8 @@ class VerifyMarkedPDFView(APIView):
         with open(full_path, 'rb') as f:
             computed_hash = hashlib.sha256(f.read()).hexdigest()
 
-        # Retrieve stored hash from most recent GRADE AuditLog entry
         log_entry = AuditLog.objects.filter(
-            action_type='GRADE',
-            target_model='EvaluationResult',
-            target_id=str(pk),
+            action_type='GRADE', target_model='EvaluationResult', target_id=str(pk),
         ).order_by('-performed_at').first()
 
         stored_hash = None
@@ -482,3 +497,244 @@ class VerifyMarkedPDFView(APIView):
             'computed_hash': computed_hash,
             'match': stored_hash == computed_hash,
         })
+
+
+# ─────────────────────────────────────────────────────────
+# Bundle Assignment (Moderation)
+# ─────────────────────────────────────────────────────────
+
+class BundleAssignmentCreateView(APIView):
+    """POST /api/bundles/{pk}/assign-moderation/ — Exam dept assigns assessor + moderator."""
+    permission_classes = [IsExamDept]
+
+    def post(self, request, pk):
+        try:
+            bundle = Bundle.objects.get(pk=pk, status='submitted')
+        except Bundle.DoesNotExist:
+            return Response({'error': 'Submitted bundle not found.'}, status=404)
+
+        if hasattr(bundle, 'moderation_assignment'):
+            return Response({'error': 'Bundle already has an assignment.'}, status=400)
+
+        assessor_id = request.data.get('assessor_id')
+        moderator_id = request.data.get('moderator_id')
+
+        if not assessor_id or not moderator_id:
+            return Response({'error': 'assessor_id and moderator_id required.'}, status=400)
+
+        if str(assessor_id) == str(moderator_id):
+            return Response({'error': 'Assessor and moderator must be different.'}, status=400)
+
+        from apps.users.models import User
+        try:
+            assessor = User.objects.get(pk=assessor_id, role='teacher')
+            moderator = User.objects.get(pk=moderator_id, role='teacher')
+        except User.DoesNotExist:
+            return Response({'error': 'Teacher not found.'}, status=404)
+
+        assignment = services.create_bundle_assignment(request, bundle, assessor, moderator)
+
+        return Response(
+            BundleAssignmentSerializer(assignment).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class RequestComparisonView(APIView):
+    """POST /api/moderation/{bundle_id}/request-comparison/"""
+    permission_classes = [IsTeacher]
+
+    def post(self, request, bundle_id):
+        try:
+            assignment = BundleAssignment.objects.select_related(
+                'bundle', 'assessor', 'moderator'
+            ).get(bundle_id=bundle_id)
+        except BundleAssignment.DoesNotExist:
+            return Response({'error': 'No moderation assignment found.'}, status=404)
+
+        if request.user != assignment.assessor:
+            return Response({'error': 'Only the assessor can request comparison.'}, status=403)
+
+        # Check assessor has evaluated all moderation papers
+        sample_ids = list(assignment.samples.values_list('answer_sheet_id', flat=True))
+        assessor_eval_count = EvaluationResult.objects.filter(
+            answer_sheet_id__in=sample_ids, role='assessor', teacher=assignment.assessor,
+        ).count()
+        if assessor_eval_count < len(sample_ids):
+            return Response({
+                'error': 'You must evaluate all moderation papers first.',
+                'evaluated': assessor_eval_count,
+                'total': len(sample_ids),
+            }, status=400)
+
+        # Check moderator completion
+        is_complete, missing = services.check_moderator_completion(assignment)
+        if not is_complete:
+            # Send reminder notification
+            Notification.objects.create(
+                recipient=assignment.moderator,
+                event_type='MODERATION_INCOMPLETE',
+                message=f'Assessor has requested comparison for Bundle '
+                        f'#{assignment.bundle.bundle_number}. '
+                        f'{missing} paper(s) still need your evaluation.',
+                bundle=assignment.bundle,
+            )
+            log_action(
+                request, 'MOD_REQUESTED', 'BundleAssignment', assignment.pk,
+                notes=f'Comparison blocked: moderator has {missing} papers remaining.',
+            )
+            return Response({
+                'status': 'BLOCKED',
+                'message': f'Moderator has not completed evaluation. {missing} paper(s) remaining. A reminder has been sent.',
+                'missing_count': missing,
+            })
+
+        # Run comparison
+        log_action(
+            request, 'MOD_REQUESTED', 'BundleAssignment', assignment.pk,
+            notes='Comparison requested and executed.',
+        )
+        result = services.run_moderation_comparison(request, assignment)
+        return Response(result)
+
+
+class ModerationStatusView(APIView):
+    """GET /api/moderation/{bundle_id}/status/"""
+    permission_classes = [IsTeacherOrExamDept]
+
+    def get(self, request, bundle_id):
+        try:
+            assignment = BundleAssignment.objects.select_related(
+                'bundle', 'assessor', 'moderator'
+            ).get(bundle_id=bundle_id)
+        except BundleAssignment.DoesNotExist:
+            return Response({'error': 'No moderation assignment.'}, status=404)
+
+        # Build per-paper status
+        samples = assignment.samples.select_related('answer_sheet').all()
+        paper_statuses = []
+        for sample in samples:
+            try:
+                ps = sample.comparison_status
+                paper_statuses.append(ModerationPaperStatusSerializer(ps).data)
+            except ModerationPaperStatus.DoesNotExist:
+                paper_statuses.append({
+                    'paper_id': sample.answer_sheet_id,
+                    'token': sample.answer_sheet.token,
+                    'status': 'PENDING',
+                    'assessor_total': None, 'moderator_total': None,
+                    'allowed_difference': None,
+                    'question_comparison': [], 'compared_at': None,
+                })
+
+        # Check eval completion
+        sample_ids = [s.answer_sheet_id for s in samples]
+        assessor_evals = EvaluationResult.objects.filter(
+            answer_sheet_id__in=sample_ids, role='assessor'
+        )
+        moderator_evals = EvaluationResult.objects.filter(
+            answer_sheet_id__in=sample_ids, role='moderator'
+        )
+        assessor_done = assessor_evals.count()
+        moderator_done = moderator_evals.count()
+        assessor_eval_ids = set(assessor_evals.values_list('answer_sheet_id', flat=True))
+        moderator_eval_ids = set(moderator_evals.values_list('answer_sheet_id', flat=True))
+
+        # Determine bundle moderation state
+        if assignment.moderation_passed:
+            bundle_mod_status = 'UNLOCKED'
+        elif assignment.moderation_completed and not assignment.moderation_passed:
+            bundle_mod_status = 'FAILED'
+        elif assignment.moderation_requested_at:
+            bundle_mod_status = 'COMPARISON_REQUESTED'
+        else:
+            bundle_mod_status = 'PENDING'
+
+        return Response({
+            'assignment': BundleAssignmentSummarySerializer(assignment).data,
+            'bundle_status': bundle_mod_status,
+            'sample_count': len(sample_ids),
+            'sample_sheet_ids': sample_ids,
+            'assessor_evaluated': assessor_done,
+            'moderator_evaluated': moderator_done,
+            'assessor_evaluated_sheet_ids': list(assessor_eval_ids),
+            'moderator_evaluated_sheet_ids': list(moderator_eval_ids),
+            'papers': paper_statuses,
+        })
+
+
+# ─────────────────────────────────────────────────────────
+# Teacher Bundle Views (Assessment / Moderation split)
+# ─────────────────────────────────────────────────────────
+
+class TeacherAssessmentBundlesView(APIView):
+    """GET /api/teacher/bundles/assessment/"""
+    permission_classes = [IsTeacher]
+
+    def get(self, request):
+        from apps.scanning.serializers import BundleSerializer
+        # Bundles where user is assessor (via BundleAssignment) OR legacy assigned
+        mod_bundle_ids = BundleAssignment.objects.filter(
+            assessor=request.user
+        ).values_list('bundle_id', flat=True)
+
+        legacy_bundle_ids = AnswerSheet.objects.filter(
+            assigned_teacher=request.user
+        ).values_list('bundle_id', flat=True).distinct()
+
+        all_ids = set(mod_bundle_ids) | set(legacy_bundle_ids)
+
+        bundles = Bundle.objects.filter(id__in=all_ids).select_related('subject', 'created_by')
+        return Response(BundleSerializer(bundles, many=True).data)
+
+
+class TeacherModerationBundlesView(APIView):
+    """GET /api/teacher/bundles/moderation/"""
+    permission_classes = [IsTeacher]
+
+    def get(self, request):
+        from apps.scanning.serializers import BundleSerializer
+        bundle_ids = BundleAssignment.objects.filter(
+            moderator=request.user
+        ).values_list('bundle_id', flat=True)
+
+        bundles = Bundle.objects.filter(id__in=bundle_ids).select_related('subject', 'created_by')
+        return Response(BundleSerializer(bundles, many=True).data)
+
+
+# ─────────────────────────────────────────────────────────
+# Notification Views
+# ─────────────────────────────────────────────────────────
+
+class NotificationListView(APIView):
+    """GET /api/notifications/"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        notifs = Notification.objects.filter(recipient=request.user)[:50]
+        return Response(NotificationSerializer(notifs, many=True).data)
+
+
+class NotificationMarkReadView(APIView):
+    """PATCH /api/notifications/{pk}/read/"""
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        try:
+            n = Notification.objects.get(pk=pk, recipient=request.user)
+        except Notification.DoesNotExist:
+            return Response({'error': 'Not found.'}, status=404)
+        n.is_read = True
+        n.save(update_fields=['is_read'])
+        return Response({'status': 'ok'})
+
+
+class NotificationMarkAllReadView(APIView):
+    """PATCH /api/notifications/read-all/"""
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request):
+        Notification.objects.filter(
+            recipient=request.user, is_read=False
+        ).update(is_read=True)
+        return Response({'status': 'ok'})

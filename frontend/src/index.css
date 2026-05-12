@@ -756,3 +756,287 @@ tr:hover td {
     padding: 0 !important;
   }
 }
+
+/* ────────────────────────────────────────────────────
+   Moderation Workflow Styles
+   ──────────────────────────────────────────────────── */
+
+/* Tabs */
+.mod-tabs {
+  display: flex;
+  gap: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 4px;
+  width: fit-content;
+}
+
+.mod-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.25rem;
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.mod-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-primary);
+}
+
+.mod-tab-active {
+  background: var(--color-primary) !important;
+  color: white !important;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.mod-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: rgba(255,255,255,0.2);
+}
+
+.mod-tab-active .mod-tab-count {
+  background: rgba(255,255,255,0.3);
+}
+
+/* Moderation badges */
+.mod-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.mod-badge-passed {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.mod-badge-failed {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.mod-badge-pending {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+/* Per-paper moderation state badges */
+.mod-state-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.mod-state-passed { background: rgba(16, 185, 129, 0.1); color: #059669; }
+.mod-state-failed { background: rgba(239, 68, 68, 0.1); color: #dc2626; }
+.mod-state-waiting { background: rgba(245, 158, 11, 0.1); color: #d97706; }
+.mod-state-locked { background: rgba(148, 163, 184, 0.1); color: #64748b; }
+.mod-state-available { background: rgba(59, 130, 246, 0.1); color: #2563eb; }
+
+/* Moderation banners */
+.mod-banner {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+  border: 1px solid;
+}
+
+.mod-banner-success {
+  background: rgba(16, 185, 129, 0.06);
+  border-color: rgba(16, 185, 129, 0.2);
+  color: #065f46;
+}
+
+.mod-banner-error {
+  background: rgba(239, 68, 68, 0.06);
+  border-color: rgba(239, 68, 68, 0.2);
+  color: #991b1b;
+}
+
+.mod-banner-warning {
+  background: rgba(245, 158, 11, 0.06);
+  border-color: rgba(245, 158, 11, 0.2);
+  color: #92400e;
+}
+
+.mod-banner-info {
+  background: rgba(59, 130, 246, 0.06);
+  border-color: rgba(59, 130, 246, 0.2);
+  color: #1e40af;
+}
+
+/* Comparison Panel */
+.comparison-panel {
+  padding: 1.25rem;
+  background: rgba(239, 68, 68, 0.03);
+  border-top: 2px solid rgba(239, 68, 68, 0.15);
+}
+
+.comparison-table {
+  width: 100%;
+  font-size: 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.comparison-table th {
+  padding: 0.6rem 1rem;
+  font-size: 0.75rem;
+  background: var(--bg-primary);
+  text-transform: uppercase;
+}
+
+.comparison-table td {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.comparison-table tfoot td {
+  background: var(--bg-primary);
+  border-top: 2px solid var(--border-color);
+}
+
+.comparison-mismatch td {
+  background: rgba(239, 68, 68, 0.05) !important;
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+/* Notification bell & dropdown */
+.sidebar-notifications {
+  padding: 0 1rem;
+  margin-bottom: 0.5rem;
+  position: relative;
+}
+
+.notif-bell-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 1.1rem;
+  position: relative;
+  transition: all var(--transition-fast);
+}
+
+.notif-bell-btn:hover {
+  background: var(--bg-primary);
+}
+
+.notif-badge {
+  position: absolute;
+  top: -4px;
+  right: calc(50% - 20px);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-danger);
+  color: white;
+  border-radius: var(--radius-full);
+  font-size: 0.65rem;
+  font-weight: 700;
+  border: 2px solid var(--bg-secondary);
+}
+
+.notif-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  overflow: hidden;
+  animation: scaleIn 0.15s ease;
+  width: 300px;
+}
+
+.notif-dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.9rem;
+}
+
+.notif-dropdown-list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.notif-item {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-light);
+  transition: background var(--transition-fast);
+}
+
+.notif-item:last-child {
+  border-bottom: none;
+}
+
+.notif-item:hover {
+  background: var(--bg-primary);
+}
+
+.notif-unread {
+  background: rgba(59, 130, 246, 0.04);
+  border-left: 3px solid var(--color-info);
+}
+
+.notif-message {
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  line-height: 1.4;
+  margin-bottom: 0.25rem;
+}
+
+.notif-time {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}

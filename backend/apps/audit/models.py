@@ -20,6 +20,14 @@ class AuditLog(models.Model):
         ('AMENDMENT_COMPLETE', 'Amendment Complete'),
         ('AMEND_MARKS', 'Amend Marks'),
         ('RESULT_GENERATED', 'Result Generated'),
+        # Moderation workflow events
+        ('BUNDLE_ASSIGNED', 'Bundle Assigned'),
+        ('MOD_SAMPLE_GEN', 'Moderation Sample Generated'),
+        ('MOD_REQUESTED', 'Moderation Requested'),
+        ('MOD_COMP_PASSED', 'Moderation Comparison Passed'),
+        ('MOD_COMP_FAILED', 'Moderation Comparison Failed'),
+        ('MOD_CORRECTION', 'Moderation Correction'),
+        ('MOD_UNLOCKED', 'Moderation Unlocked'),
     ]
 
     action_type = models.CharField(max_length=30, choices=ACTION_CHOICES)

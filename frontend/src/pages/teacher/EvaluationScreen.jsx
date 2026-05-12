@@ -23,7 +23,7 @@ function EvaluationScreen() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  const { pendingQueue = [] } = location.state || {}
+  const { pendingQueue = [], role: evalRole = 'assessor' } = location.state || {}
 
   const [scheme,         setScheme]         = useState(null)
   const [existingResult, setExistingResult] = useState(null)
@@ -132,7 +132,7 @@ function EvaluationScreen() {
 
         // Try to fetch existing evaluation (may have draft badge positions)
         try {
-          const evalRes = await getEvaluation(id)
+          const evalRes = await getEvaluation(id, evalRole)
           const result  = evalRes.data
           setExistingResult(result)
 
@@ -324,6 +324,7 @@ function EvaluationScreen() {
         answer_sheet: parseInt(id),
         section_results: sr,
         mark_positions: buildMarkPositionsPayload(placements),
+        role: evalRole,
       })
       setLastSaved(new Date())
     } catch {
@@ -372,6 +373,7 @@ function EvaluationScreen() {
         section_results:        sectionResults,
         pdf_version_at_grading: 1,
         mark_positions:         buildMarkPositionsPayload(placements),
+        role:                   evalRole,
       }
 
       const res = await submitEvaluation(payload)
@@ -469,7 +471,7 @@ function EvaluationScreen() {
             ← Back
           </button>
           <span className="logo" style={{ fontSize: '1.25rem', fontWeight: 800 }}>
-            Evaluation Mode
+            {evalRole === 'moderator' ? '🔍 Moderation Mode' : 'Evaluation Mode'}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -654,11 +656,12 @@ function EvaluationScreen() {
                       maxMarks={q.maxMarks}
                       placement={placements[q.key] ?? null}
                       isActive={activeQuestionId === q.key}
-                      onClick={(src) => handleQuestionClick(q.key, src)}
-                      onIncrement={() => handleIncrement(q.key)}
-                      onDecrement={() => handleDecrement(q.key)}
-                      onClear={() => handleClear(q.key)}
-                      onManualInput={(v) => handleManualInput(q.key, v)}
+                      onClick={isSubmitted ? undefined : (src) => handleQuestionClick(q.key, src)}
+                      onIncrement={isSubmitted ? undefined : () => handleIncrement(q.key)}
+                      onDecrement={isSubmitted ? undefined : () => handleDecrement(q.key)}
+                      onClear={isSubmitted ? undefined : () => handleClear(q.key)}
+                      onManualInput={isSubmitted ? undefined : (v) => handleManualInput(q.key, v)}
+                      disabled={isSubmitted}
                     />
                   ))}
                 </div>

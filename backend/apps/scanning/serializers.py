@@ -97,6 +97,7 @@ class BundleSerializer(serializers.ModelSerializer):
     sheets_count = serializers.SerializerMethodField()
     graded_count = serializers.SerializerMethodField()
     assigned_count = serializers.SerializerMethodField()
+    moderation_assignment = serializers.SerializerMethodField()
 
     class Meta:
         model = Bundle
@@ -104,7 +105,8 @@ class BundleSerializer(serializers.ModelSerializer):
             'id', 'subject', 'subject_code', 'subject_name',
             'bundle_number', 'total_sheets', 'academic_year', 'qr_raw_data',
             'status', 'created_by', 'created_by_name', 'created_at',
-            'sheets_count', 'graded_count', 'assigned_count'
+            'sheets_count', 'graded_count', 'assigned_count',
+            'moderation_assignment',
         ]
         read_only_fields = ['id', 'created_at', 'created_by']
 
@@ -116,6 +118,24 @@ class BundleSerializer(serializers.ModelSerializer):
 
     def get_assigned_count(self, obj):
         return obj.answer_sheets.filter(assigned_teacher__isnull=False).count()
+
+    def get_moderation_assignment(self, obj):
+        try:
+            ma = obj.moderation_assignment
+        except Exception:
+            return None
+        if ma is None:
+            return None
+        return {
+            'id': ma.id,
+            'assessor_id': str(ma.assessor_id),
+            'assessor_name': ma.assessor.full_name,
+            'moderator_id': str(ma.moderator_id),
+            'moderator_name': ma.moderator.full_name,
+            'moderation_completed': ma.moderation_completed,
+            'moderation_passed': ma.moderation_passed,
+            'created_at': ma.created_at.isoformat() if ma.created_at else None,
+        }
 
 
 class AnswerSheetImageSerializer(serializers.ModelSerializer):

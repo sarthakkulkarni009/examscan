@@ -1,5 +1,9 @@
+from math import ceil
 from rest_framework import serializers
-from .models import EvaluationResult
+from .models import (
+    EvaluationResult, BundleAssignment, ModerationSample,
+    ModerationPaperStatus, EvaluationRevision, Notification,
+)
 
 
 class EvaluationResultSerializer(serializers.ModelSerializer):
@@ -16,6 +20,7 @@ class EvaluationResultSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'answer_sheet', 'answer_sheet_id', 'answer_sheet_status',
             'teacher', 'teacher_name',
+            'role', 'is_final', 'comparison_locked',
             'section_results', 'total_marks', 'submitted_at', 'graded_at',
             'last_edited_at', 'pdf_version_at_grading',
             'was_amended', 'amended_at',
@@ -26,6 +31,7 @@ class EvaluationResultSerializer(serializers.ModelSerializer):
             'id', 'submitted_at', 'graded_at', 'last_edited_at',
             'teacher', 'total_marks', 'was_amended', 'amended_at',
             'marked_pdf_path', 'answer_sheet_status',
+            'is_final', 'comparison_locked',
         ]
 
     def validate_section_results(self, value):
@@ -95,7 +101,7 @@ class EvaluationResultSerializer(serializers.ModelSerializer):
         if errors:
             raise serializers.ValidationError(errors)
 
-        self._computed_total = computed_total
+        self._computed_total = ceil(computed_total)
         return value
 
     def create(self, validated_data):
@@ -106,3 +112,86 @@ class EvaluationResultSerializer(serializers.ModelSerializer):
         if hasattr(self, '_computed_total'):
             validated_data['total_marks'] = self._computed_total
         return super().update(instance, validated_data)
+
+
+class ModerationSampleSerializer(serializers.ModelSerializer):
+    token = serializers.CharField(source='answer_sheet.token', read_only=True)
+    sheet_id = serializers.IntegerField(source='answer_sheet.id', read_only=True)
+
+    class Meta:
+        model = ModerationSample
+        fields = ['id', 'sheet_id', 'token', 'selected_at']
+
+
+class ModerationPaperStatusSerializer(serializers.ModelSerializer):
+    paper_id = serializers.IntegerField(source='sample.answer_sheet_id', read_only=True)
+    token = serializers.CharField(source='sample.answer_sheet.token', read_only=True)
+
+    class Meta:
+        model = ModerationPaperStatus
+        fields = [
+            'id', 'paper_id', 'token', 'status',
+            'assessor_total', 'moderator_total', 'allowed_difference',
+            'question_comparison', 'compared_at',
+        ]
+
+
+class BundleAssignmentSerializer(serializers.ModelSerializer):
+    assessor_name = serializers.CharField(source='assessor.full_name', read_only=True)
+    moderator_name = serializers.CharField(source='moderator.full_name', read_only=True)
+    samples = ModerationSampleSerializer(many=True, read_only=True)
+    sample_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BundleAssignment
+        fields = [
+            'id', 'bundle', 'assessor', 'assessor_name',
+            'moderator', 'moderator_name',
+            'moderation_completed', 'moderation_passed',
+            'moderation_requested_at', 'moderation_completed_at',
+            'created_at', 'samples', 'sample_count',
+        ]
+        read_only_fields = [
+            'id', 'created_at', 'moderation_completed', 'moderation_passed',
+            'moderation_requested_at', 'moderation_completed_at',
+        ]
+
+    def get_sample_count(self, obj):
+        return obj.samples.count()
+
+
+class BundleAssignmentSummarySerializer(serializers.ModelSerializer):
+    """Lightweight serializer for embedding in bundle lists — no nested samples."""
+    assessor_name = serializers.CharField(source='assessor.full_name', read_only=True)
+    moderator_name = serializers.CharField(source='moderator.full_name', read_only=True)
+
+    class Meta:
+        model = BundleAssignment
+        fields = [
+            'id', 'assessor', 'assessor_name',
+            'moderator', 'moderator_name',
+            'moderation_completed', 'moderation_passed',
+            'moderation_requested_at', 'moderation_completed_at',
+            'created_at',
+        ]
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = [
+            'id', 'event_type', 'message', 'bundle',
+            'is_read', 'created_at',
+        ]
+        read_only_fields = ['id', 'event_type', 'message', 'bundle', 'created_at']
+
+
+class EvaluationRevisionSerializer(serializers.ModelSerializer):
+    changed_by_name = serializers.CharField(source='changed_by.full_name', read_only=True)
+
+    class Meta:
+        model = EvaluationRevision
+        fields = [
+            'id', 'evaluation', 'previous_section_results', 'previous_total',
+            'changed_by', 'changed_by_name', 'changed_at', 'reason',
+        ]

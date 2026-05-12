@@ -22,6 +22,7 @@ export default function QuestionMarkRow({
   questionId, label, maxMarks,
   placement, isActive,
   onClick, onIncrement, onDecrement, onClear, onManualInput,
+  disabled = false,
 }) {
   const inputRef = useRef(null)
   const value    = placement?.value ?? null
@@ -51,19 +52,21 @@ export default function QuestionMarkRow({
                    : '#27500A'
 
   const handleKeyDown = (e) => {
+    if (disabled) return
     if (e.key === 'Tab') {
       e.preventDefault()
       // Parent handles Tab navigation
-      onClick('tab')
+      onClick?.('tab')
     }
-    if (e.key === 'ArrowUp')   { e.preventDefault(); onIncrement() }
-    if (e.key === 'ArrowDown') { e.preventDefault(); onDecrement() }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); onIncrement?.() }
+    if (e.key === 'ArrowDown') { e.preventDefault(); onDecrement?.() }
   }
 
   const handleInputChange = (e) => {
+    if (disabled) return
     const raw = e.target.value
     if (raw === '' || raw === '—') {
-      onClear()
+      onClear?.()
       return
     }
     const parsed = parseFloat(raw)
@@ -71,12 +74,12 @@ export default function QuestionMarkRow({
     if (parsed < 0 || parsed > maxMarks) return
     // Round to nearest 0.5 to allow half marks
     const rounded = Math.round(parsed * 2) / 2
-    onManualInput(rounded)
+    onManualInput?.(rounded)
   }
 
   return (
     <div
-      onClick={() => onClick()}
+      onClick={() => !disabled && onClick?.()}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -84,9 +87,11 @@ export default function QuestionMarkRow({
         borderBottom: '1px solid var(--border-light)',
         borderLeft: isActive ? '3px solid #1D9E75' : '3px solid transparent',
         background: isActive ? '#E1F5EE' : '#FFFFFF',
-        cursor: 'pointer',
+        cursor: disabled ? 'default' : 'pointer',
         gap: '10px',
         transition: 'background 0.1s ease',
+        opacity: disabled ? 0.6 : 1,
+        pointerEvents: disabled ? 'none' : 'auto',
       }}
     >
       {/* Status dot */}
@@ -129,8 +134,8 @@ export default function QuestionMarkRow({
       >
         {/* Decrement button */}
         <button
-          onClick={onDecrement}
-          disabled={!isMarked || atMin}
+          onClick={disabled ? undefined : onDecrement}
+          disabled={disabled || !isMarked || atMin}
           style={{
             width: '30px', height: '30px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -162,6 +167,7 @@ export default function QuestionMarkRow({
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onClick={e => e.stopPropagation()}
+          readOnly={disabled}
           style={{
             width: '46px',
             height: '30px',
@@ -184,8 +190,8 @@ export default function QuestionMarkRow({
 
         {/* Increment button */}
         <button
-          onClick={onIncrement}
-          disabled={atMax}
+          onClick={disabled ? undefined : onIncrement}
+          disabled={disabled || atMax}
           style={{
             width: '30px', height: '30px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -208,7 +214,7 @@ export default function QuestionMarkRow({
 
       {/* Clear button — only active when question has a placement */}
       <button
-        onClick={(e) => { e.stopPropagation(); onClear() }}
+        onClick={(e) => { e.stopPropagation(); if (!disabled) onClear?.() }}
         style={{
           background: 'none',
           border: 'none',
