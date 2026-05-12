@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { uploadImage, deleteImage, finalizeSheet } from '../../api/answerSheets'
 import { getBundle } from '../../api/bundles'
+import { API_BASE_URL } from '../../api/config'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import Webcam from 'react-webcam'
 
@@ -139,7 +140,7 @@ function ImageUpload() {
   const captureIpWebcam = useCallback(async () => {
     try {
       const targetUrl = ipWebcamUrl.replace(/\/$/, '')
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+      const baseUrl = API_BASE_URL
       const proxyUrl = `${baseUrl}/api/answer-sheets/ip-webcam-proxy/?url=`
       const res = await fetch(`${proxyUrl}${encodeURIComponent(targetUrl + '/shot.jpg')}`)
       const blob = await res.blob()
@@ -373,7 +374,7 @@ function ImageUpload() {
                     </div>
                     <img 
                       ref={ipWebcamRef}
-                      src={`${import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'}/api/answer-sheets/ip-webcam-proxy/?url=${encodeURIComponent(ipWebcamUrl.replace(/\/$/, '') + '/video')}`}
+                      src={`${API_BASE_URL}/api/answer-sheets/ip-webcam-proxy/?url=${encodeURIComponent(ipWebcamUrl.replace(/\/$/, '') + '/video')}`}
                       alt="IP Webcam Stream" 
                       style={{ width: '100%', flexGrow: 1, objectFit: 'contain', background: '#000' }} 
                       onError={(e) => {

@@ -4,11 +4,10 @@ import { useAuth } from '../../context/AuthContext'
 import { getSheetPdfUrl, flagSheet } from '../../api/answerSheets'
 import { getEvaluation, submitEvaluation, saveDraft } from '../../api/evaluations'
 import { getMarkingSchemes } from '../../api/markingSchemes'
+import { API_BASE_URL } from '../../api/config'
 import PDFViewer from '../../components/PDFViewer'
 import QuestionMarkRow from '../../components/QuestionMarkRow'
 import LoadingSpinner from '../../components/LoadingSpinner'
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 
 const FLAG_REASONS = [
   { value: 'Blurry',        label: 'Blurry' },
@@ -143,7 +142,7 @@ function EvaluationScreen() {
 
           // If a marked PDF exists, build its URL so we show it instead of original
           if (result.marked_pdf_path) {
-            setMarkedPdfUrl(`${BASE_URL}/api/evaluations/${result.id}/marked-pdf/`)
+            setMarkedPdfUrl(`${API_BASE_URL}/api/evaluations/${result.id}/marked-pdf/`)
           }
 
           // ── Pre-populate placements from saved data ───────────────────
@@ -345,7 +344,7 @@ function EvaluationScreen() {
   useEffect(() => {
     const handleUnload = () => {
       const token = sessionStorage.getItem('access_token')
-      const base = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+      const base = API_BASE_URL
       const body = JSON.stringify({
         answer_sheet: parseInt(id),
         section_results: buildSectionResults(),

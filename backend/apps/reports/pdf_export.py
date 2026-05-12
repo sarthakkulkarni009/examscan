@@ -242,13 +242,13 @@ def _build_bundle_pdf_elements(bundle_data, styles):
     elements.append(HRFlowable(width='100%', thickness=1.5, color=colors.HexColor('#1C1D22'), spaceAfter=0.3 * inch))
 
     cover_data = [
-        ['Bundle Number', bundle_data.get('bundle_number', '-')],
-        ['Subject', f"{bundle_data.get('subject_code', '-')} — {bundle_data.get('subject_name', '-')}"],
-        ['Department', bundle_data.get('department', '-')],
-        ['Semester', str(bundle_data.get('semester', '-'))],
-        ['Academic Year', bundle_data.get('academic_year', '-')],
-        ['Total Sheets', str(bundle_data.get('total_sheets', 0))],
-        ['Generated On', bundle_data.get('generated_on', '-')],
+        ['Bundle Number', bundle_data.get('bundle_number') or '-'],
+        ['Subject', f"{bundle_data.get('subject_code') or '-'} — {bundle_data.get('subject_name') or '-'}"] ,
+        ['Department', bundle_data.get('department') or '-'],
+        ['Semester', str(bundle_data.get('semester') if bundle_data.get('semester') is not None else '-')],
+        ['Academic Year', bundle_data.get('academic_year') or '-'],
+        ['Total Sheets', str(bundle_data.get('total_sheets') if bundle_data.get('total_sheets') is not None else 0)],
+        ['Generated On', bundle_data.get('generated_on') or '-'],
     ]
     cover_table = Table(cover_data, colWidths=[2.0 * inch, 4.5 * inch])
     cover_table.setStyle(TableStyle([
@@ -287,16 +287,16 @@ def _build_bundle_pdf_elements(bundle_data, styles):
         student_info = [
             [
                 Paragraph(f'<b>Student {idx} of {len(sheets)}</b>', info_style),
-                Paragraph(f'<b>Subject:</b> {bundle_data.get("subject_code")} — {bundle_data.get("subject_name")}', info_style),
+                Paragraph(f'<b>Subject:</b> {bundle_data.get("subject_code") or "-"} — {bundle_data.get("subject_name") or "-"}', info_style),
             ],
             [
                 Paragraph(f'<b>Roll Number:</b> {roll}', info_style),
-                Paragraph(f'<b>Department:</b> {bundle_data.get("department", "-")} &nbsp; | &nbsp; '
-                          f'<b>Sem:</b> {bundle_data.get("semester", "-")}', info_style),
+                Paragraph(f'<b>Department:</b> {bundle_data.get("department") or "-"} &nbsp; | &nbsp; '
+                          f'<b>Sem:</b> {bundle_data.get("semester") if bundle_data.get("semester") is not None else "-"}', info_style),
             ],
             [
                 Paragraph(f'<b>Token / Code:</b> {token}', info_style),
-                Paragraph(f'<b>Academic Year:</b> {bundle_data.get("academic_year", "-")}', info_style),
+                Paragraph(f'<b>Academic Year:</b> {bundle_data.get("academic_year") or "-"}', info_style),
             ],
         ]
         info_tbl = Table(student_info, colWidths=['50%', '50%'])

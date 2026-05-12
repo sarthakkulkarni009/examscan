@@ -230,13 +230,26 @@ class BundlePDFExportView(APIView):
             return Response({'error': 'Bundle not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         # Fetch all answer sheets for this bundle with their evaluations
-        sheets_qs = AnswerSheet.objects.filter(bundle=bundle).select_related(
-            'evaluation'
+        # EvaluationResult is a ForeignKey (related_name='evaluations'), not OneToOne
+        sheets_qs = AnswerSheet.objects.filter(bundle=bundle).prefetch_related(
+            'evaluations'
         ).order_by('roll_number')
 
         sheets_data = []
         for sheet in sheets_qs:
-            evaluation = getattr(sheet, 'evaluation', None)
+            # Pick the best evaluation: is_final first, then assessor, then latest
+            evals = list(sheet.evaluations.all())
+            evaluation = None
+            if evals:
+                final_evals = [e for e in evals if e.is_final]
+                assessor_evals = [e for e in evals if e.role == 'assessor']
+                if final_evals:
+                    evaluation = final_evals[0]
+                elif assessor_evals:
+                    evaluation = assessor_evals[0]
+                else:
+                    evaluation = evals[0]
+
             sheets_data.append({
                 'roll_number': sheet.roll_number or 'N/A',
                 'token': sheet.token or 'N/A',

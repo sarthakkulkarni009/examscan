@@ -1,7 +1,8 @@
 import axios from 'axios'
+import { API_BASE_URL } from './config'
 
 const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: API_BASE_URL,
   withCredentials: true,
 })
 
@@ -52,7 +53,7 @@ axiosInstance.interceptors.response.use(
         if (!refresh) throw new Error('No refresh token')
 
         const { data } = await axios.post(
-          `${import.meta.env.VITE_API_BASE_URL}/api/auth/refresh/`,
+          `${API_BASE_URL}/api/auth/refresh/`,
           { refresh }
         )
 

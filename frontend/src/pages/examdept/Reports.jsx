@@ -410,8 +410,8 @@ function Reports() {
                   <div style={{ flex: 1 }}>
                     <p style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-light)' }}>SUBJECTS EVALUATED</p>
                     <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.9rem' }}>
-                      {student.subjects.map(subj => (
-                        <li key={subj.subject_code} className="flex-between" style={{ padding: '0.3rem 0', borderBottom: '1px dashed var(--border-color)' }}>
+                      {student.subjects.map((subj, idx) => (
+                        <li key={`${subj.subject_code}-${idx}`} className="flex-between" style={{ padding: '0.3rem 0', borderBottom: '1px dashed var(--border-color)' }}>
                            <span title={subj.subject_name}>{subj.subject_code}</span>
                            <span style={{ fontWeight: 600 }}>{subj.total_marks} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>/ {subj.max_marks || '-'}</span></span>
                         </li>
@@ -449,8 +449,8 @@ function Reports() {
                          <td>{student.semester || '-'}</td>
                          <td>{student.academic_year || '-'}</td>
                          <td>
-                           {student.subjects.map(s => (
-                             <div key={s.subject_code} style={{ fontSize: '0.85rem' }}>
+                           {student.subjects.map((s, idx) => (
+                             <div key={`${s.subject_code}-${idx}`} style={{ fontSize: '0.85rem' }}>
                                {s.subject_code}: <strong>{s.total_marks}</strong>
                              </div>
                            ))}

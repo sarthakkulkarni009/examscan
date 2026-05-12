@@ -1,4 +1,5 @@
 import axiosInstance from './axiosInstance'
+import { API_BASE_URL } from './config'
 
 export const getAnswerSheets = (params) =>
   axiosInstance.get('/api/answer-sheets/', { params })
@@ -24,4 +25,4 @@ export const flagSheet = (id, data) =>
   axiosInstance.patch(`/api/answer-sheets/${id}/flag/`, data)
 
 export const getSheetPdfUrl = (id) =>
-  `${import.meta.env.VITE_API_BASE_URL}/api/answer-sheets/${id}/pdf/`
+  `${API_BASE_URL}/api/answer-sheets/${id}/pdf/`

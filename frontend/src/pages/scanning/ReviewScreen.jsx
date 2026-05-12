@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { submitBundle } from '../../api/bundles'
 import { getBundleQualityCheck, replaceSheetImages } from '../../api/qualityCheck'
+import { API_BASE_URL } from '../../api/config'
 import LoadingSpinner from '../../components/LoadingSpinner'
 
 // ── Page state constants ─────────────────────────────────
@@ -30,7 +31,7 @@ function ScoreBar({ score }) {
 // ── Single thumbnail card ────────────────────────────────
 function ThumbnailCard({ sheet, pageState, onRetake, onMarkAcceptable, onUndo, onPreview, isRetaking }) {
   const fileInputRef = useRef()
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+  const baseUrl = API_BASE_URL
   const thumbnailUrl = `${baseUrl}${sheet.thumbnail_url}`
 
   const borderColor = {
@@ -188,7 +189,7 @@ function ThumbnailCard({ sheet, pageState, onRetake, onMarkAcceptable, onUndo, o
 
 // ── Preview Modal ────────────────────────────────────────
 function PreviewModal({ sheet, onClose }) {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+  const baseUrl = API_BASE_URL
   if (!sheet) return null
   return (
     <div
