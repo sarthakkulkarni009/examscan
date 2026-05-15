@@ -176,7 +176,7 @@ def process_pdf_task(evaluation_id: int):
             )
             # Simpler: just log a new entry
             AuditLog.objects.create(
-                user=result.teacher,
+                performed_by=result.teacher,
                 action_type='PDF_GENERATED',
                 target_model='EvaluationResult',
                 target_id=str(evaluation_id),

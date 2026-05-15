@@ -44,6 +44,6 @@ urlpatterns += [path('api/', include((moderation_urlpatterns, 'moderation')))]
 urlpatterns += [path('api/', include((teacher_urlpatterns, 'teacher-bundles')))]
 urlpatterns += [path('api/', include((notification_urlpatterns, 'notifications')))]
 
-# Serve media files during development
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Serve media files — required for LAN deployment without a reverse proxy.
+# WhiteNoise handles static files; media files (PDFs, uploads) need this.
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

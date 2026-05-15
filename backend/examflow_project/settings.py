@@ -125,8 +125,17 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ──────────────────────────────────────────────
 # CORS
 # ──────────────────────────────────────────────
-CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='', cast=Csv())
+CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=False, cast=bool)
+if not CORS_ALLOW_ALL_ORIGINS:
+    CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='', cast=Csv())
 CORS_ALLOW_CREDENTIALS = True
+
+# ──────────────────────────────────────────────
+# CSRF trusted origins (required for Django 4.2+)
+# ──────────────────────────────────────────────
+_csrf_origins = config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
+if _csrf_origins and _csrf_origins != ['']:
+    CSRF_TRUSTED_ORIGINS = _csrf_origins
 
 # ──────────────────────────────────────────────
 # Django REST Framework
