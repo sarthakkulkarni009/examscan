@@ -135,8 +135,8 @@ function EvaluationScreen() {
           const result  = evalRes.data
           setExistingResult(result)
 
-          // Lock the form if the sheet is completed or a marked PDF already exists
-          if (result.answer_sheet_status === 'completed' || result.marked_pdf_path) {
+          // Lock the form if the evaluation is final or a marked PDF already exists
+          if (result.is_final || result.marked_pdf_path) {
             setIsSubmitted(true)
           }
 
@@ -377,12 +377,8 @@ function EvaluationScreen() {
 
       const res = await submitEvaluation(payload)
       const result = res.data
-      setExistingResult(result)
-      setIsSubmitted(true)
-      if (result.marked_pdf_path) {
-        setMarkedPdfUrl(`${BASE_URL}/api/evaluations/${result.id}/marked-pdf/`)
-      }
       
+      // Navigate immediately — don't wait for PDF generation in background
       const answerSheetId = parseInt(id)
       const remainingQueue = pendingQueue.filter(qId => qId !== answerSheetId)
 
@@ -394,6 +390,8 @@ function EvaluationScreen() {
       } else if (pendingQueue.includes(answerSheetId)) {
         navigate('/teacher/dashboard', { state: { bundleCompleted: true } })
       } else {
+        setExistingResult(result)
+        setIsSubmitted(true)
         setMessage({ type: 'success', text: `✓ Evaluation submitted! Total: ${totalMarks} marks.` })
       }
     } catch (err) {

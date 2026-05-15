@@ -11,3 +11,6 @@ export const amendMarks = (evaluationId, data) =>
 
 export const saveDraft = (data) =>
   axiosInstance.patch('/api/evaluations/draft/', data)
+
+export const getPdfStatus = (evaluationId) =>
+  axiosInstance.get(`/api/evaluations/${evaluationId}/pdf-status/`)

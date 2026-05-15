@@ -26,12 +26,14 @@ class EvaluationResultSerializer(serializers.ModelSerializer):
             'was_amended', 'amended_at',
             # Badge fields
             'mark_positions', 'marked_pdf_path',
+            'pdf_status', 'pdf_error',
         ]
         read_only_fields = [
             'id', 'submitted_at', 'graded_at', 'last_edited_at',
             'teacher', 'total_marks', 'was_amended', 'amended_at',
             'marked_pdf_path', 'answer_sheet_status',
             'is_final', 'comparison_locked',
+            'pdf_status', 'pdf_error',
         ]
 
     def validate_section_results(self, value):

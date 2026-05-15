@@ -6,6 +6,7 @@ from .views import (
     SaveEvaluationDraftView,
     MarkedPDFView,
     VerifyMarkedPDFView,
+    PDFStatusView,
     BundleAssignmentCreateView,
     RequestComparisonView,
     ModerationStatusView,
@@ -34,6 +35,9 @@ urlpatterns = [
 
     # Tamper-detection: compare SHA-256 (exam dept only)
     path('<int:pk>/verify-pdf/', VerifyMarkedPDFView.as_view(), name='verify-pdf'),
+
+    # Check background PDF generation status
+    path('<int:pk>/pdf-status/', PDFStatusView.as_view(), name='pdf-status'),
 ]
 
 # Moderation URLs

@@ -52,6 +52,21 @@ class EvaluationResult(models.Model):
     # Path to annotated PDF relative to MEDIA_ROOT.
     # e.g. "answer_sheets/{bundle_id}/{token}_v2_marked.pdf"
     # The original AnswerSheet.pdf_file is NEVER modified.
+
+    PDF_STATUS_CHOICES = [
+        ('pending', 'Pending'),        # Marks saved, PDF generation not yet started
+        ('processing', 'Processing'),  # Background worker is generating PDF
+        ('completed', 'Completed'),    # Marked PDF ready on disk
+        ('failed', 'Failed'),          # PDF generation failed
+        ('skipped', 'Skipped'),        # No mark_positions → no PDF needed
+    ]
+    pdf_status = models.CharField(
+        max_length=20, choices=PDF_STATUS_CHOICES, default='skipped',
+        help_text='Background PDF generation status',
+    )
+    pdf_error = models.TextField(blank=True, default='',
+        help_text='Error message if PDF generation failed',
+    )
     # ── End mark badge fields ────────────────────────────────────────────────
 
     class Meta:

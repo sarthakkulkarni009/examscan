@@ -23,7 +23,6 @@ from .serializers import (
     ModerationPaperStatusSerializer, NotificationSerializer,
     BundleAssignmentSummarySerializer,
 )
-from .pdf_annotator import annotate_pdf
 from . import services
 
 
@@ -250,6 +249,7 @@ class EvaluationCreateView(APIView):
                 setattr(existing, field, value)
             existing.mark_positions = mark_positions
             existing.total_marks = getattr(serializer, '_computed_total', existing.total_marks)
+            existing.is_final = True
             existing.save()
             existing.refresh_from_db()
             instance = existing
@@ -260,29 +260,19 @@ class EvaluationCreateView(APIView):
                 role=role,
                 pdf_version_at_grading=sheet.pdf_version,
                 mark_positions=mark_positions,
+                is_final=True,
             )
             is_new = True
 
-        # Generate annotated PDF only for assessor role
-        pdf_hash = None
-        marked_pdf_rel = None
+        # ── Queue PDF generation in background — do NOT block the response ──
         if mark_positions and role == 'assessor':
-            try:
-                original_pdf_path = sheet.pdf_file.path
-                output_pdf_path = os.path.join(
-                    settings.MEDIA_ROOT, 'answer_sheets',
-                    str(sheet.bundle_id), f'{sheet.token}_v2_marked.pdf',
-                )
-                pdf_hash = annotate_pdf(
-                    original_pdf_path=original_pdf_path,
-                    mark_positions=mark_positions,
-                    output_pdf_path=output_pdf_path,
-                )
-                marked_pdf_rel = os.path.relpath(output_pdf_path, settings.MEDIA_ROOT)
-                instance.marked_pdf_path = marked_pdf_rel
-                instance.save(update_fields=['marked_pdf_path'])
-            except Exception as exc:
-                print(f'[ExamFlow] PDF annotation failed for sheet {sheet.id}: {exc}')
+            instance.pdf_status = 'pending'
+            instance.save(update_fields=['pdf_status'])
+            from .pdf_worker import submit_pdf_task
+            submit_pdf_task(instance.pk)
+        else:
+            instance.pdf_status = 'skipped'
+            instance.save(update_fields=['pdf_status'])
 
         # Update sheet status — only assessor submissions mark the sheet
         if role == 'assessor':
@@ -296,8 +286,7 @@ class EvaluationCreateView(APIView):
             new_value={
                 'total_marks': instance.total_marks,
                 'role': instance.role,
-                'marked_pdf_path': marked_pdf_rel,
-                'pdf_sha256': pdf_hash,
+                'pdf_status': instance.pdf_status,
                 'badge_count': len(mark_positions),
             },
             notes=f'Evaluated ({role}) by {request.user.full_name}. Total: {instance.total_marks}.',
@@ -499,6 +488,25 @@ class VerifyMarkedPDFView(APIView):
         })
 
 
+class PDFStatusView(APIView):
+    """GET /api/evaluations/{pk}/pdf-status/"""
+    permission_classes = [IsTeacherOrExamDept]
+
+    def get(self, request, pk):
+        try:
+            result = EvaluationResult.objects.only(
+                'pdf_status', 'marked_pdf_path', 'pdf_error'
+            ).get(pk=pk)
+        except EvaluationResult.DoesNotExist:
+            return Response({'error': 'Not found.'}, status=404)
+        return Response({
+            'pdf_status': result.pdf_status,
+            'marked_pdf_path': result.marked_pdf_path or None,
+            'has_error': bool(result.pdf_error),
+            'pdf_error': result.pdf_error,
+        })
+
+
 # ─────────────────────────────────────────────────────────
 # Bundle Assignment (Moderation)
 # ─────────────────────────────────────────────────────────
@@ -555,10 +563,12 @@ class RequestComparisonView(APIView):
         if request.user != assignment.assessor:
             return Response({'error': 'Only the assessor can request comparison.'}, status=403)
 
+        from django.db.models import Q
         # Check assessor has evaluated all moderation papers
         sample_ids = list(assignment.samples.values_list('answer_sheet_id', flat=True))
         assessor_eval_count = EvaluationResult.objects.filter(
-            answer_sheet_id__in=sample_ids, role='assessor', teacher=assignment.assessor,
+            Q(is_final=True) | Q(answer_sheet__status='completed'),
+            answer_sheet_id__in=sample_ids, role='assessor', teacher=assignment.assessor
         ).count()
         if assessor_eval_count < len(sample_ids):
             return Response({
@@ -627,13 +637,15 @@ class ModerationStatusView(APIView):
                     'question_comparison': [], 'compared_at': None,
                 })
 
+        from django.db.models import Q
         # Check eval completion
         sample_ids = [s.answer_sheet_id for s in samples]
         assessor_evals = EvaluationResult.objects.filter(
+            Q(is_final=True) | Q(answer_sheet__status='completed'),
             answer_sheet_id__in=sample_ids, role='assessor'
         )
         moderator_evals = EvaluationResult.objects.filter(
-            answer_sheet_id__in=sample_ids, role='moderator'
+            answer_sheet_id__in=sample_ids, role='moderator', is_final=True
         )
         assessor_done = assessor_evals.count()
         moderator_done = moderator_evals.count()

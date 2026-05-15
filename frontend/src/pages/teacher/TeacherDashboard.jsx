@@ -116,7 +116,7 @@ function TeacherDashboard() {
     } finally { setComparingBundle(null) }
   }
 
-  const handleEvaluateClick = (sheet, allSheets, subjectCode, role = 'assessor') => {
+  const handleEvaluateClick = (sheet, allSheets, subjectCode, role = 'assessor', isCompleted = false) => {
     // Build the pending queue, filtering out locked (non-sample) papers
     const bundleModStatus = modStatuses[sheet.bundle]
     const pendingIds = allSheets
@@ -131,7 +131,7 @@ function TeacherDashboard() {
       })
       .map(s => s.id)
     navigate(`/teacher/evaluate/${sheet.id}`, {
-      state: { subjectCode, isCompleted: sheet.status === 'completed', pendingQueue: pendingIds, role }
+      state: { subjectCode, isCompleted, pendingQueue: pendingIds, role }
     })
   }
 
@@ -464,7 +464,7 @@ function TeacherDashboard() {
                                                 ) : (
                                                   <button
                                                     className="btn btn-primary btn-sm"
-                                                    onClick={() => handleEvaluateClick(sheet, displaySheets, bundle.subject_code, activeTab === 'moderation' ? 'moderator' : 'assessor')}
+                                                    onClick={() => handleEvaluateClick(sheet, displaySheets, bundle.subject_code, activeTab === 'moderation' ? 'moderator' : 'assessor', activeTab === 'moderation' ? isModeratorEvaluated : sheet.status === 'completed')}
                                                   >
                                                     {(activeTab === 'moderation' ? isModeratorEvaluated : sheet.status === 'completed') ? 'View Details' : 'Evaluate Paper'}
                                                   </button>
@@ -511,7 +511,7 @@ function TeacherDashboard() {
                                                     <button
                                                       className="btn btn-primary"
                                                       style={{ marginTop: '0.75rem', width: '100%' }}
-                                                      onClick={() => handleEvaluateClick(sheet, displaySheets, bundle.subject_code, 'assessor')}
+                                                      onClick={() => handleEvaluateClick(sheet, displaySheets, bundle.subject_code, 'assessor', sheet.status === 'completed')}
                                                     >
                                                       🔄 Reopen Evaluation
                                                     </button>

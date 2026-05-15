@@ -318,7 +318,7 @@ def generate_result_page(
         Paragraph('GRAND TOTAL', tbl_grand_label),
         Paragraph('', tbl_grand_style),
         Paragraph('', tbl_grand_style),
-        Paragraph(str(grand_obtained_total), tbl_grand_style),
+        Paragraph(str(total_marks), tbl_grand_style),
     ])
     row_styles.append(('BACKGROUND',    (0, row_index), (-1, row_index), COLOR_GRAND_BG))
     row_styles.append(('TOPPADDING',    (0, row_index), (-1, row_index), 7))
