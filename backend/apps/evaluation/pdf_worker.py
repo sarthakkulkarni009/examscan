@@ -5,7 +5,7 @@ Lightweight background PDF annotation worker using ThreadPoolExecutor.
 
 Architecture:
   - Django views call submit_pdf_task(evaluation_id) to queue work.
-  - A singleton ThreadPoolExecutor (max 2 workers) processes tasks.
+  - A singleton ThreadPoolExecutor (max 16 workers) processes tasks.
   - Each worker: loads the EvaluationResult, runs annotate_pdf(), updates status.
   - Row-level DB locks (select_for_update) prevent duplicate processing.
   - On Django startup, recover_pending_tasks() requeues interrupted work.
@@ -38,10 +38,10 @@ def get_executor():
         with _lock:
             if _executor is None:
                 _executor = ThreadPoolExecutor(
-                    max_workers=2,
+                    max_workers=16,
                     thread_name_prefix='pdf-worker',
                 )
-                logger.info('PDF worker pool started (max_workers=2).')
+                logger.info('PDF worker pool started (max_workers=16).')
     return _executor
 
 
