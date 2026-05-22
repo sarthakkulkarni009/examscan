@@ -357,9 +357,10 @@ def _prepend_result_page(result_page_bytes: bytes, marked_pdf_path: str) -> byte
     """
     writer = PdfWriter()
 
-    # Page 1: result summary
+    # Result summary pages (may span multiple pages for large marking schemes)
     result_reader = PdfReader(io.BytesIO(result_page_bytes))
-    writer.add_page(result_reader.pages[0])
+    for page in result_reader.pages:
+        writer.add_page(page)
 
     # Pages 2+: original marked PDF pages
     marked_reader = PdfReader(marked_pdf_path)

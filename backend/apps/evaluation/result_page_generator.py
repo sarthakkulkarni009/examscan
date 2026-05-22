@@ -56,10 +56,10 @@ COLOR_BODY_TEXT      = black
 COLOR_MUTED_TEXT     = HexColor('#4A5568')
 
 PAGE_WIDTH, PAGE_HEIGHT = A4   # 595.27 x 841.89 points
-MARGIN_LEFT   = 20 * mm
-MARGIN_RIGHT  = 20 * mm
-MARGIN_TOP    = 15 * mm
-MARGIN_BOTTOM = 20 * mm
+MARGIN_LEFT   = 15 * mm
+MARGIN_RIGHT  = 15 * mm
+MARGIN_TOP    = 10 * mm
+MARGIN_BOTTOM = 10 * mm
 CONTENT_WIDTH = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT
 
 
@@ -97,18 +97,18 @@ def generate_result_page(
     header_style = ParagraphStyle(
         'HeaderLeft',
         fontName='Helvetica-Bold',
-        fontSize=10,
+        fontSize=9,
         textColor=COLOR_HEADER_TEXT,
         backColor=COLOR_HEADER_BG,
-        leading=14,
+        leading=12,
     )
     header_right_style = ParagraphStyle(
         'HeaderRight',
         fontName='Helvetica',
-        fontSize=10,
+        fontSize=9,
         textColor=COLOR_HEADER_TEXT,
         backColor=COLOR_HEADER_BG,
-        leading=14,
+        leading=12,
         alignment=TA_RIGHT,
     )
 
@@ -130,22 +130,22 @@ def generate_result_page(
         ('RIGHTPADDING',  (-1, 0), (-1, -1), 0),
     ]))
     story.append(header_table)
-    story.append(Spacer(1, 4 * mm))
+    story.append(Spacer(1, 2 * mm))
 
     # ── Student info block ────────────────────────────────────────────────────
     info_label_style = ParagraphStyle(
         'InfoLabel',
         fontName='Helvetica-Bold',
-        fontSize=9,
+        fontSize=8,
         textColor=COLOR_BODY_TEXT,
-        leading=14,
+        leading=11,
     )
     info_value_style = ParagraphStyle(
         'InfoValue',
         fontName='Helvetica',
-        fontSize=9,
+        fontSize=8,
         textColor=COLOR_BODY_TEXT,
-        leading=14,
+        leading=11,
     )
 
     def info_row(label, value):
@@ -168,7 +168,7 @@ def generate_result_page(
         ('LEFTPADDING',   (0, 0), (-1, -1), 0),
     ]))
     story.append(info_table)
-    story.append(Spacer(1, 5 * mm))
+    story.append(Spacer(1, 3 * mm))
 
     # ── Marks table ───────────────────────────────────────────────────────────
     col_widths = [
@@ -182,42 +182,42 @@ def generate_result_page(
     tbl_header_style = ParagraphStyle(
         'TblHeader',
         fontName='Helvetica-Bold',
-        fontSize=9,
+        fontSize=8,
         textColor=COLOR_TABLE_HDR_TEXT,
         alignment=TA_CENTER,
-        leading=12,
+        leading=10,
     )
     tbl_cell_style = ParagraphStyle(
         'TblCell',
         fontName='Helvetica',
-        fontSize=9,
+        fontSize=8,
         textColor=COLOR_BODY_TEXT,
         alignment=TA_CENTER,
-        leading=12,
+        leading=10,
     )
     tbl_cell_left = ParagraphStyle(
         'TblCellLeft',
         fontName='Helvetica',
-        fontSize=9,
+        fontSize=8,
         textColor=COLOR_BODY_TEXT,
         alignment=TA_LEFT,
-        leading=12,
+        leading=10,
     )
     tbl_bold_center = ParagraphStyle(
         'TblBoldCenter',
         fontName='Helvetica-Bold',
-        fontSize=9,
+        fontSize=8,
         textColor=COLOR_SECTION_TEXT,
         alignment=TA_CENTER,
-        leading=12,
+        leading=10,
     )
     tbl_grand_style = ParagraphStyle(
         'TblGrand',
         fontName='Helvetica-Bold',
-        fontSize=10,
+        fontSize=9,
         textColor=COLOR_GRAND_TEXT,
         alignment=TA_CENTER,
-        leading=14,
+        leading=12,
     )
 
     # Build table rows
@@ -234,8 +234,8 @@ def generate_result_page(
         Paragraph("Marks Obtained", tbl_header_style),
     ])
     row_styles.append(('BACKGROUND', (0, 0), (-1, 0), COLOR_TABLE_HEADER))
-    row_styles.append(('TOPPADDING',    (0, 0), (-1, 0), 6))
-    row_styles.append(('BOTTOMPADDING', (0, 0), (-1, 0), 6))
+    row_styles.append(('TOPPADDING',    (0, 0), (-1, 0), 4))
+    row_styles.append(('BOTTOMPADDING', (0, 0), (-1, 0), 4))
 
     grand_max_total      = 0
     grand_obtained_total = 0
@@ -286,8 +286,8 @@ def generate_result_page(
                     Paragraph(str(max_m),        tbl_cell_style),
                     Paragraph(obtained_str,      tbl_cell_style),
                 ])
-                row_styles.append(('TOPPADDING',    (0, row_index), (-1, row_index), 4))
-                row_styles.append(('BOTTOMPADDING', (0, row_index), (-1, row_index), 4))
+                row_styles.append(('TOPPADDING',    (0, row_index), (-1, row_index), 2))
+                row_styles.append(('BOTTOMPADDING', (0, row_index), (-1, row_index), 2))
                 row_index += 1
 
         # Section total row
@@ -299,8 +299,8 @@ def generate_result_page(
             Paragraph(str(section_obtained),      tbl_bold_center),
         ])
         row_styles.append(('BACKGROUND',    (0, row_index), (-1, row_index), COLOR_SECTION_TOTAL))
-        row_styles.append(('TOPPADDING',    (0, row_index), (-1, row_index), 5))
-        row_styles.append(('BOTTOMPADDING', (0, row_index), (-1, row_index), 5))
+        row_styles.append(('TOPPADDING',    (0, row_index), (-1, row_index), 3))
+        row_styles.append(('BOTTOMPADDING', (0, row_index), (-1, row_index), 3))
         row_styles.append(('SPAN', (1, row_index), (2, row_index)))
         row_index += 1
 
@@ -321,8 +321,8 @@ def generate_result_page(
         Paragraph(str(total_marks), tbl_grand_style),
     ])
     row_styles.append(('BACKGROUND',    (0, row_index), (-1, row_index), COLOR_GRAND_BG))
-    row_styles.append(('TOPPADDING',    (0, row_index), (-1, row_index), 7))
-    row_styles.append(('BOTTOMPADDING', (0, row_index), (-1, row_index), 7))
+    row_styles.append(('TOPPADDING',    (0, row_index), (-1, row_index), 5))
+    row_styles.append(('BOTTOMPADDING', (0, row_index), (-1, row_index), 5))
     row_styles.append(('SPAN', (1, row_index), (2, row_index)))
     row_index += 1
 
@@ -334,13 +334,13 @@ def generate_result_page(
         ('LINEBELOW',    (0, 0), (-1, 0), 1, white), # white line under header
     ]
 
-    marks_table = Table(table_data, colWidths=col_widths, repeatRows=1)
+    marks_table = Table(table_data, colWidths=col_widths, repeatRows=1, splitInRow=1)
     marks_table.setStyle(TableStyle(base_styles + row_styles))
 
     story.append(marks_table)
 
     # ── Footer ────────────────────────────────────────────────────────────────
-    story.append(Spacer(1, 6 * mm))
+    story.append(Spacer(1, 4 * mm))
     footer_style = ParagraphStyle(
         'Footer',
         fontName='Helvetica',
