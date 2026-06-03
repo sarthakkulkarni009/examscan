@@ -43,7 +43,11 @@ def _build_student_data(request):
         'answer_sheet__bundle',
         'answer_sheet__bundle__subject',
         'teacher',
-    ).filter(answer_sheet__bundle__status='submitted')
+    ).filter(
+        answer_sheet__bundle__status='submitted',
+        role='assessor',
+        is_final=True,
+    )
 
     if department:
         qs = qs.filter(answer_sheet__bundle__subject__department=department)
@@ -243,10 +247,16 @@ class BundlePDFExportView(APIView):
             if evals:
                 final_evals = [e for e in evals if e.is_final]
                 assessor_evals = [e for e in evals if e.role == 'assessor']
-                if final_evals:
-                    evaluation = final_evals[0]
+                final_assessor = next(
+                    (e for e in final_evals if e.role == 'assessor'),
+                    None,
+                )
+                if final_assessor:
+                    evaluation = final_assessor
                 elif assessor_evals:
                     evaluation = assessor_evals[0]
+                elif final_evals:
+                    evaluation = final_evals[0]
                 else:
                     evaluation = evals[0]
 

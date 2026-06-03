@@ -20,6 +20,41 @@ from reportlab.platypus import (
 )
 
 
+def _sum_best(values, rule='all', rule_count=None):
+    """Apply the same simple attempt rule used when evaluation totals are saved."""
+    numeric_values = [
+        value
+        for value in values
+        if isinstance(value, (int, float))
+    ]
+    if rule == 'any' and isinstance(rule_count, int) and rule_count > 0:
+        return sum(sorted(numeric_values, reverse=True)[:rule_count])
+    return sum(numeric_values)
+
+
+def _compute_question_obtained_total(question):
+    """Recompute a question total from part marks, honoring any/rule_count choices."""
+    sub_question_totals = []
+    for sq in question.get('sub_questions', []):
+        part_marks = []
+        for part in sq.get('parts', []):
+            obtained = part.get('marks_obtained')
+            part_marks.append(obtained if obtained is not None else 0)
+        sub_question_totals.append(
+            _sum_best(
+                part_marks,
+                sq.get('rule', 'all'),
+                sq.get('rule_count'),
+            )
+        )
+
+    return _sum_best(
+        sub_question_totals,
+        question.get('rule', 'all'),
+        question.get('rule_count'),
+    )
+
+
 def _build_student_pdf_elements(student, styles):
     """Build ReportLab elements for a single student result card."""
     elements = []
@@ -326,7 +361,7 @@ def _build_bundle_pdf_elements(bundle_data, styles, report_title='Bundle Evaluat
 
             for q in section_results:
                 q_name = q.get('name', '')
-                q_obtained_total = q.get('obtained_total', 0)
+                q_obtained_total = _compute_question_obtained_total(q)
                 q_max_total = 0
                 first_part_of_q = True
 
