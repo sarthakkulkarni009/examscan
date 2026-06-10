@@ -12,11 +12,11 @@ WORKDIR /app
 
 # Install system dependencies
 # - libzbar0: Required by pyzbar to perform barcode/QR code decoding
-# - libgl1-mesa-glx & libglib2.0-0: Required by OpenCV (cv2) for image preprocessing
+# - libgl1 & libglib2.0-0: Required by OpenCV (cv2) for image preprocessing
 # - build-essential & libpq-dev: Required if any package needs compilation (like database adapters)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libzbar0 \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     build-essential \
     libpq-dev \
